@@ -1,0 +1,973 @@
+# ============================================================
+# GLOBAL SUPERMARKET SALES AND PROFIT ANALYSIS
+# ============================================================
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+from scipy import stats
+from scipy.stats import f_oneway
+from scipy.optimize import linprog
+
+import warnings
+warnings.filterwarnings("ignore")
+
+
+# ============================================================
+# 1. LOAD DATASET
+# ============================================================
+
+df = pd.read_csv("Superstore.csv")
+
+print("\n========== DATASET INFORMATION ==========")
+print("Shape:", df.shape)
+
+print("\nColumns:")
+print(df.columns.tolist())
+
+print("\nFirst 5 Records:")
+print(df.head())
+
+print("\nLast 5 Records:")
+print(df.tail())
+
+
+# ============================================================
+# 2. DATA PREPROCESSING
+# ============================================================
+
+print("\n========== DATA PREPROCESSING ==========")
+
+print("\nMissing Values:")
+print(df.isnull().sum())
+
+print("\nDuplicate Records:", df.duplicated().sum())
+
+df = df.drop_duplicates()
+
+# Convert date
+df["Order Date"] = pd.to_datetime(df["Order Date"])
+
+# Remove invalid values
+df = df[df["Sales"] > 0]
+df = df[df["Quantity"] > 0]
+
+print("\nCleaned Dataset Shape:", df.shape)
+
+
+# ============================================================
+# 3. BASIC STATISTICS
+# ============================================================
+
+print("\n========== DESCRIPTIVE STATISTICS ==========")
+
+print(df[["Sales", "Profit", "Quantity", "Discount"]].describe())
+
+print("\nMean:")
+print(df[["Sales", "Profit", "Quantity", "Discount"]].mean())
+
+print("\nMedian:")
+print(df[["Sales", "Profit", "Quantity", "Discount"]].median())
+
+print("\nMode:")
+print(df[["Sales", "Profit", "Quantity", "Discount"]].mode().iloc[0])
+
+print("\nVariance:")
+print(df[["Sales", "Profit", "Quantity", "Discount"]].var())
+
+print("\nStandard Deviation:")
+print(df[["Sales", "Profit", "Quantity", "Discount"]].std())
+
+
+# ============================================================
+# 4. EXPLORATORY DATA ANALYSIS
+# ============================================================
+
+# ---------- Sales by Region ----------
+
+region_sales = (
+    df.groupby("Region")["Sales"]
+    .sum()
+    .sort_values(ascending=False)
+)
+
+plt.figure(figsize=(8, 5))
+region_sales.plot(kind="bar")
+plt.title("Sales by Region")
+plt.xlabel("Region")
+plt.ylabel("Sales")
+plt.xticks(rotation=0)
+plt.tight_layout()
+plt.show()
+
+
+# ---------- Profit by Category ----------
+
+category_profit = (
+    df.groupby("Category")["Profit"]
+    .sum()
+    .sort_values(ascending=False)
+)
+
+plt.figure(figsize=(8, 5))
+category_profit.plot(kind="bar")
+plt.title("Profit by Category")
+plt.xlabel("Category")
+plt.ylabel("Profit")
+plt.tight_layout()
+plt.show()
+
+
+# ---------- Top 10 Products ----------
+
+product_sales = (
+    df.groupby("Product Name")["Sales"]
+    .sum()
+    .sort_values(ascending=False)
+    .head(10)
+)
+
+plt.figure(figsize=(10, 6))
+product_sales.plot(kind="bar")
+plt.title("Top 10 Products by Sales")
+plt.xlabel("Product")
+plt.ylabel("Sales")
+plt.xticks(rotation=75)
+plt.tight_layout()
+plt.show()
+
+
+# ---------- Histogram: Sales ----------
+
+plt.figure(figsize=(8, 5))
+plt.hist(df["Sales"], bins=40)
+plt.title("Distribution of Sales")
+plt.xlabel("Sales")
+plt.ylabel("Frequency")
+plt.xlim(0, df["Sales"].quantile(0.99))
+plt.tight_layout()
+plt.show()
+
+
+# ---------- Histogram: Profit ----------
+
+plt.figure(figsize=(8, 5))
+plt.hist(df["Profit"], bins=40)
+plt.title("Distribution of Profit")
+plt.xlabel("Profit")
+plt.ylabel("Frequency")
+plt.xlim(
+    df["Profit"].quantile(0.01),
+    df["Profit"].quantile(0.99)
+)
+plt.tight_layout()
+plt.show()
+
+
+# ---------- Box Plot ----------
+
+plt.figure(figsize=(8, 5))
+plt.boxplot(df["Profit"], vert=False)
+plt.title("Profit Box Plot")
+plt.xlabel("Profit")
+plt.tight_layout()
+plt.show()
+
+
+# ---------- Pie Chart ----------
+
+category_orders = df["Category"].value_counts()
+
+plt.figure(figsize=(7, 7))
+plt.pie(
+    category_orders,
+    labels=category_orders.index,
+    autopct="%1.1f%%"
+)
+
+plt.title("Transactions by Category")
+plt.show()
+
+
+# ============================================================
+# 5. CORRELATION ANALYSIS
+# ============================================================
+
+print("\n========== CORRELATION ANALYSIS ==========")
+
+numeric_data = df[
+    ["Sales", "Profit", "Quantity", "Discount"]
+]
+
+print(numeric_data.corr())
+
+plt.figure(figsize=(7, 5))
+
+sns.heatmap(
+    numeric_data.corr(),
+    annot=True,
+    cmap="coolwarm"
+)
+
+plt.title("Sales and Profit Correlation Heatmap")
+plt.tight_layout()
+plt.show()
+
+
+# ============================================================
+# 6. LINEAR REGRESSION
+# ============================================================
+
+print("\n========== LINEAR REGRESSION ==========")
+
+# Independent variable
+X = df[["Sales"]]
+
+# Dependent variable
+y = df["Profit"]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.2,
+    random_state=42
+)
+
+model = LinearRegression()
+
+model.fit(X_train, y_train)
+
+y_pred = model.predict(X_test)
+
+print("Regression Coefficient:", model.coef_[0])
+print("Intercept:", model.intercept_)
+
+print("R² Score:", r2_score(y_test, y_pred))
+
+print("MAE:", mean_absolute_error(y_test, y_pred))
+
+print("MSE:", mean_squared_error(y_test, y_pred))
+
+print(
+    "RMSE:",
+    np.sqrt(mean_squared_error(y_test, y_pred))
+)
+
+print(
+    "\nRegression Equation:"
+    f" Profit = {model.intercept_:.2f} + "
+    f"({model.coef_[0]:.2f} × Sales)"
+)
+
+
+# ---------- Regression Plot ----------
+
+sample = df.sample(
+    min(5000, len(df)),
+    random_state=42
+)
+
+plt.figure(figsize=(8, 5))
+
+plt.scatter(
+    sample["Sales"],
+    sample["Profit"],
+    alpha=0.4
+)
+
+x_line = np.linspace(
+    sample["Sales"].min(),
+    sample["Sales"].max(),
+    100
+)
+
+y_line = model.predict(
+    pd.DataFrame({"Sales": x_line})
+)
+
+plt.plot(x_line, y_line)
+
+plt.title("Sales vs Profit - Linear Regression")
+plt.xlabel("Sales")
+plt.ylabel("Profit")
+
+plt.xlim(
+    0,
+    sample["Sales"].quantile(0.99)
+)
+
+plt.tight_layout()
+plt.show()
+
+
+# ============================================================
+# 7. PROBABILITY
+# ============================================================
+
+print("\n========== PROBABILITY ==========")
+
+total_transactions = len(df)
+
+high_sales = len(
+    df[df["Sales"] > df["Sales"].median()]
+)
+
+probability = high_sales / total_transactions
+
+print(
+    "Probability of Sales greater than Median:",
+    probability
+)
+
+
+# ============================================================
+# 8. PROBABILITY DISTRIBUTION
+# ============================================================
+
+random_values = np.random.normal(
+    loc=df["Profit"].mean(),
+    scale=df["Profit"].std(),
+    size=1000
+)
+
+plt.figure(figsize=(8, 5))
+
+plt.hist(
+    random_values,
+    bins=30
+)
+
+plt.title("Normal Distribution of Profit")
+plt.xlabel("Profit")
+plt.ylabel("Frequency")
+
+plt.show()
+
+
+# ============================================================
+# 9. DECISION MAKING UNDER UNCERTAINTY
+# ============================================================
+
+print("\n========== DECISION MAKING ==========")
+
+alternatives = {
+    "High Discount": [0.6, 0.4],
+    "Low Discount": [0.6, 0.4]
+}
+
+payoffs = {
+    "High Discount": [50000, 20000],
+    "Low Discount": [35000, 25000]
+}
+
+for alternative in alternatives:
+
+    expected_value = sum(
+        p * payoff
+        for p, payoff in zip(
+            alternatives[alternative],
+            payoffs[alternative]
+        )
+    )
+
+    print(
+        alternative,
+        "Expected Value:",
+        expected_value
+    )
+
+
+# ============================================================
+# 10. SAMPLING AND CENTRAL LIMIT THEOREM
+# ============================================================
+
+print("\n========== SAMPLING ==========")
+
+sample_means = []
+
+for i in range(100):
+
+    sample_data = df["Profit"].sample(
+        100,
+        replace=True
+    )
+
+    sample_means.append(
+        sample_data.mean()
+    )
+
+print(
+    "Mean of Sample Means:",
+    np.mean(sample_means)
+)
+
+print(
+    "Standard Deviation:",
+    np.std(sample_means)
+)
+
+plt.figure(figsize=(8, 5))
+
+plt.hist(
+    sample_means,
+    bins=20
+)
+
+plt.title("Sampling Distribution of Profit")
+plt.xlabel("Sample Mean")
+plt.ylabel("Frequency")
+
+plt.show()
+
+
+# ============================================================
+# 11. CONFIDENCE INTERVAL
+# ============================================================
+
+print("\n========== CONFIDENCE INTERVAL ==========")
+
+profit = df["Profit"]
+
+mean_profit = profit.mean()
+std_profit = profit.std()
+n = len(profit)
+
+for confidence in [0.90, 0.95, 0.99]:
+
+    z = stats.norm.ppf(
+        1 - (1 - confidence) / 2
+    )
+
+    margin = (
+        z * std_profit / np.sqrt(n)
+    )
+
+    lower = mean_profit - margin
+    upper = mean_profit + margin
+
+    print(
+        f"{int(confidence * 100)}% Confidence Interval:"
+    )
+
+    print(
+        "Lower:",
+        lower,
+        "Upper:",
+        upper
+    )
+
+
+# ============================================================
+# 12. BOOTSTRAPPING
+# ============================================================
+
+print("\n========== BOOTSTRAPPING ==========")
+
+bootstrap_medians = []
+
+for i in range(1000):
+
+    sample_data = df["Profit"].sample(
+        len(df),
+        replace=True
+    )
+
+    bootstrap_medians.append(
+        sample_data.median()
+    )
+
+lower = np.percentile(
+    bootstrap_medians,
+    2.5
+)
+
+upper = np.percentile(
+    bootstrap_medians,
+    97.5
+)
+
+print(
+    "Bootstrap Median:",
+    np.median(bootstrap_medians)
+)
+
+print(
+    "95% Bootstrap CI:",
+    lower,
+    upper
+)
+
+plt.figure(figsize=(8, 5))
+
+plt.hist(
+    bootstrap_medians,
+    bins=30
+)
+
+plt.title("Bootstrap Distribution")
+plt.xlabel("Median Profit")
+plt.ylabel("Frequency")
+
+plt.show()
+
+
+# ============================================================
+# 13. HYPOTHESIS TESTING
+# ============================================================
+
+print("\n========== HYPOTHESIS TESTING ==========")
+
+test_value = 0
+
+t_statistic, p_value = stats.ttest_1samp(
+    df["Profit"],
+    test_value
+)
+
+print(
+    "T-statistic:",
+    t_statistic
+)
+
+print(
+    "P-value:",
+    p_value
+)
+
+alpha = 0.05
+
+if p_value < alpha:
+    print(
+        "Decision: Reject Null Hypothesis"
+    )
+else:
+    print(
+        "Decision: Fail to Reject Null Hypothesis"
+    )
+
+
+# ============================================================
+# 14. A/B TESTING
+# ============================================================
+
+print("\n========== A/B TESTING ==========")
+
+group_A = df.iloc[
+    :len(df)//2
+]["Profit"]
+
+group_B = df.iloc[
+    len(df)//2:
+]["Profit"]
+
+t_stat, p_value = stats.ttest_ind(
+    group_A,
+    group_B,
+    equal_var=False
+)
+
+print(
+    "Group A Mean:",
+    group_A.mean()
+)
+
+print(
+    "Group B Mean:",
+    group_B.mean()
+)
+
+print(
+    "T-statistic:",
+    t_stat
+)
+
+print(
+    "P-value:",
+    p_value
+)
+
+
+# ============================================================
+# 15. TIME SERIES ANALYSIS
+# ============================================================
+
+print("\n========== TIME SERIES ANALYSIS ==========")
+
+monthly_sales = (
+    df.set_index("Order Date")
+    .resample("ME")["Sales"]
+    .sum()
+)
+
+print(monthly_sales)
+
+plt.figure(figsize=(10, 5))
+
+plt.plot(
+    monthly_sales.index,
+    monthly_sales.values
+)
+
+plt.title("Monthly Sales Trend")
+plt.xlabel("Month")
+plt.ylabel("Sales")
+
+plt.xticks(rotation=45)
+
+plt.tight_layout()
+plt.show()
+
+
+# ============================================================
+# 16. EXPONENTIAL SMOOTHING
+# ============================================================
+
+print("\n========== EXPONENTIAL SMOOTHING ==========")
+
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
+
+model_exp = ExponentialSmoothing(
+    monthly_sales,
+    trend="add",
+    seasonal=None
+)
+
+fit_exp = model_exp.fit()
+
+forecast_exp = fit_exp.forecast(3)
+
+print("Next 3 Months Forecast:")
+
+print(forecast_exp)
+
+
+# ============================================================
+# 17. FORECAST ACCURACY
+# ============================================================
+
+actual = monthly_sales.iloc[-3:]
+
+predicted = fit_exp.fittedvalues.iloc[-3:]
+
+mae = mean_absolute_error(
+    actual,
+    predicted
+)
+
+mse = mean_squared_error(
+    actual,
+    predicted
+)
+
+rmse = np.sqrt(mse)
+
+print("\n========== FORECAST ACCURACY ==========")
+
+print("MAE:", mae)
+print("MSE:", mse)
+print("RMSE:", rmse)
+
+
+# ============================================================
+# 18. OPTIMIZATION MODELING
+# ============================================================
+
+print("\n========== OPTIMIZATION ==========")
+
+# Product A profit = 40
+# Product B profit = 30
+
+profit_values = [-40, -30]
+
+# Resource constraints
+A = [
+    [2, 1],
+    [1, 2]
+]
+
+b = [
+    100,
+    80
+]
+
+result = linprog(
+    profit_values,
+    A_ub=A,
+    b_ub=b,
+    bounds=[
+        (0, None),
+        (0, None)
+    ],
+    method="highs"
+)
+
+print(
+    "Optimal Product A:",
+    result.x[0]
+)
+
+print(
+    "Optimal Product B:",
+    result.x[1]
+)
+
+print(
+    "Maximum Profit:",
+    -result.fun
+)
+
+
+# ============================================================
+# 19. SIMULATION MODELING
+# ============================================================
+
+print("\n========== SIMULATION ==========")
+
+np.random.seed(42)
+
+scenarios = {}
+
+for scenario in [
+    "Low Demand",
+    "Medium Demand",
+    "High Demand"
+]:
+
+    if scenario == "Low Demand":
+
+        demand = np.random.normal(
+            100,
+            15,
+            1000
+        )
+
+    elif scenario == "Medium Demand":
+
+        demand = np.random.normal(
+            150,
+            20,
+            1000
+        )
+
+    else:
+
+        demand = np.random.normal(
+            200,
+            25,
+            1000
+        )
+
+    demand = np.maximum(
+        demand,
+        0
+    )
+
+    sales = demand * 20
+
+    scenarios[scenario] = sales.mean()
+
+print(
+    "Average Sales by Scenario:"
+)
+
+for scenario, sales in scenarios.items():
+
+    print(
+        scenario,
+        ":",
+        sales
+    )
+
+
+plt.figure(figsize=(8, 5))
+
+plt.bar(
+    list(scenarios.keys()),
+    list(scenarios.values())
+)
+
+plt.title("Sales Simulation Scenario Comparison")
+plt.xlabel("Scenario")
+plt.ylabel("Average Sales")
+
+plt.show()
+
+
+# ============================================================
+# 20. ANOVA
+# ============================================================
+
+print("\n========== ANOVA ==========")
+
+# Profit by category
+
+groups = []
+
+for category in df["Category"].unique():
+
+    group = df[
+        df["Category"] == category
+    ]["Profit"]
+
+    groups.append(group)
+
+f_stat, p_value = f_oneway(
+    *groups
+)
+
+print(
+    "F-statistic:",
+    f_stat
+)
+
+print(
+    "P-value:",
+    p_value
+)
+
+if p_value < 0.05:
+
+    print(
+        "Decision: Significant difference exists"
+    )
+
+else:
+
+    print(
+        "Decision: No significant difference"
+    )
+
+
+# ============================================================
+# 21. EXPERIMENTAL DESIGN
+# ============================================================
+
+print("\n========== EXPERIMENTAL DESIGN ==========")
+
+print("Factor 1: Discount Level")
+print("Factor 2: Product Category")
+print("Response Variable: Profit")
+print("Experimental Unit: Customer Transaction")
+
+
+# ============================================================
+# 22. FACTORIAL EXPERIMENT
+# ============================================================
+
+print("\n========== FACTORIAL EXPERIMENT ==========")
+
+factorial_data = pd.DataFrame({
+
+    "Discount": [
+        "Low",
+        "High",
+        "Low",
+        "High"
+    ],
+
+    "Category": [
+        "Furniture",
+        "Furniture",
+        "Technology",
+        "Technology"
+    ],
+
+    "Profit": [
+        20000,
+        28000,
+        22000,
+        30000
+    ]
+})
+
+print(factorial_data)
+
+print(
+    "\nAverage Profit by Discount:"
+)
+
+print(
+    factorial_data
+    .groupby("Discount")["Profit"]
+    .mean()
+)
+
+print(
+    "\nAverage Profit by Category:"
+)
+
+print(
+    factorial_data
+    .groupby("Category")["Profit"]
+    .mean()
+)
+
+
+# ============================================================
+# 23. BUSINESS INSIGHTS
+# ============================================================
+
+print("\n========== BUSINESS INSIGHTS ==========")
+
+print("1. Sales vary across different regions.")
+
+print("2. Profit differs across product categories.")
+
+print("3. Some products generate significantly higher sales.")
+
+print("4. Sales and profit show a measurable relationship.")
+
+print("5. Discount levels can influence profitability.")
+
+print("6. Monthly sales show changes over time.")
+
+print("7. Forecasting can support future sales planning.")
+
+print("8. Statistical testing helps compare categories.")
+
+print("9. Optimization can improve product allocation.")
+
+print("10. Simulation helps evaluate demand scenarios.")
+
+
+# ============================================================
+# 24. BUSINESS RECOMMENDATIONS
+# ============================================================
+
+print("\n========== BUSINESS RECOMMENDATIONS ==========")
+
+print("1. Focus on high-profit product categories.")
+
+print("2. Identify and promote high-sales products.")
+
+print("3. Monitor discount levels carefully.")
+
+print("4. Improve performance in low-sales regions.")
+
+print("5. Use forecasting for inventory planning.")
+
+print("6. Use customer and sales data for decisions.")
+
+print("7. Apply optimization for resource allocation.")
+
+print("8. Use simulation for demand planning.")
+
+print("9. Monitor monthly sales trends.")
+
+print("10. Regularly evaluate profit and sales KPIs.")
+
+
+# ============================================================
+# END OF PROJECT
+# ============================================================
+
+print("\n========================================")
+print("GLOBAL SUPERMARKET SALES AND PROFIT")
+print("ANALYSIS PROJECT COMPLETED SUCCESSFULLY")
+print("========================================")
